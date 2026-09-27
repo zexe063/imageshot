@@ -127,24 +127,46 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   })
 }
 
+/**
+ * Chrome refuses a 2D canvas past 32,767 px on a side, and past roughly 48 megapixels
+ * it runs the tab out of memory. `MAX_OUTPUT_SIDE` leaves headroom for composition
+ * padding. A capture that does not fit is shrunk rather than refused, so a very long
+ * page still opens.
+ */
+const MAX_OUTPUT_PIXELS = 48_000_000
+const MAX_OUTPUT_SIDE = 32_000
+
+/** The scale a capture is reduced by to fit one canvas. 1 means it fits as captured. */
+export function captureFitScale(width: number, height: number): number {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) return 1
+  return Math.min(1, Math.sqrt(MAX_OUTPUT_PIXELS / (width * height)), MAX_OUTPUT_SIDE / width, MAX_OUTPUT_SIDE / height)
+}
+
 /** Run in the editor document: only decode one tile at a time to bound memory. */
 export async function materializeCapture(record: CaptureRecord): Promise<string> {
   if (record.dataUrl) return record.dataUrl
   if (!record.tiles?.length) throw new Error('This screenshot has no image data.')
-  if (record.width < 1 || record.height < 1 || record.width > 32_760 || record.height > 32_760 || record.width * record.height > 48_000_000) {
-    throw new Error('This screenshot is too large to open. Capture a smaller area instead.')
-  }
+  if (record.width < 1 || record.height < 1) throw new Error('This screenshot has no image data.')
+  // The tiles keep their full resolution, so reducing the composed image costs export
+  // detail rather than discarding the capture.
+  const scale = captureFitScale(record.width, record.height)
+  const width = Math.max(1, Math.floor(record.width * scale))
+  const height = Math.max(1, Math.floor(record.height * scale))
   const canvas = document.createElement('canvas')
-  canvas.width = record.width
-  canvas.height = record.height
+  canvas.width = width
+  canvas.height = height
   const context = canvas.getContext('2d', { alpha: false })
   if (!context) throw new Error('Your browser could not create the screenshot canvas.')
   context.fillStyle = '#ffffff'
-  context.fillRect(0, 0, record.width, record.height)
+  context.fillRect(0, 0, width, height)
   try {
     for (const tile of record.tiles) {
       const img = await loadImage(tile.dataUrl)
-      context.drawImage(img, tile.sourceX, tile.sourceY, tile.sourceWidth, tile.sourceHeight, tile.x, tile.y, tile.width, tile.height)
+      // Scale every edge independently, the way the capture loop places tiles, so
+      // neighbours stay flush and no seam opens between them.
+      const x = Math.round(tile.x * scale)
+      const y = Math.round(tile.y * scale)
+      context.drawImage(img, tile.sourceX, tile.sourceY, tile.sourceWidth, tile.sourceHeight, x, y, Math.max(1, Math.round((tile.x + tile.width) * scale) - x), Math.max(1, Math.round((tile.y + tile.height) * scale) - y))
       img.src = ''
     }
     const dataUrl = canvas.toDataURL('image/png')

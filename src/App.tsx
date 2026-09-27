@@ -6,14 +6,28 @@ import PropertiesPanel from './components/PropertiesPanel';
 import TopBar, { TOOLS } from './components/TopBar';
 import ExportMenu from './components/ExportMenu';
 import { IconButton } from './components/ui';
-import { DEFAULT_STYLE, type Annotation, type CompositionStyle, type Tool } from './lib/editor-types';
-import { annotationBounds, getCompositionSize, renderComposition } from './lib/render';
-import { layerDisplayName } from './lib/naming';
-import { getCapture, listCaptures, materializeCapture, type CaptureRecord } from './lib/capture-store';
+import { DEFAULT_STYLE, type Annotation, type ArrowEnds, type ArrowHead, type ArrowStyle, type ArrowTurn, type CompositionStyle, type Tool } from './lib/editor-types';
+import { annotationBounds, ARROW_CURVE_DEFAULT, getCompositionSize, renderComposition } from './lib/render';
+import { layerDisplayName, layerLabel } from './lib/naming';
+import { captureFitScale, getCapture, listCaptures, materializeCapture, type CaptureRecord } from './lib/capture-store';
 import { readDraft, writeDraft, type ShotDocument } from './lib/document-store';
-import { createExportBlob, type ExportFormat } from './lib/export';
+import { createExportBlob, type ExportFormat, type PdfPageSize } from './lib/export';
 
 const toolIcons = TOOLS.reduce<Record<string, IconName>>((map, tool) => ({ ...map, [tool.id]: tool.icon }), {});
+
+const ARROW_STYLE_ORDER: ArrowStyle[] = ['straight', 'curved', 'elbow'];
+const ARROW_STYLE_LABELS: Record<ArrowStyle, string> = { straight: 'Straight', curved: 'Curved', elbow: 'Bent' };
+
+/** Captures larger than one browser canvas open reduced, so report the real size. */
+function captureDimensions(capture: CaptureRecord): string {
+  const scale = captureFitScale(capture.width, capture.height);
+  return `${Math.round(capture.width * scale)} × ${Math.round(capture.height * scale)}`;
+}
+function reducedCaptureNotice(capture: CaptureRecord): string {
+  const scale = captureFitScale(capture.width, capture.height);
+  if (scale >= 1) return '';
+  return `This capture is ${(capture.width * capture.height / 1e6).toFixed(0)} megapixels, so ImageShot opened it at ${Math.round(scale * 100)}% scale to fit your browser's canvas limit. Use Select area for full-resolution crops.`;
+}
 const initialDocument: ShotDocument = { name: 'A little more clarity', imageSrc: './sample-workspace.svg', annotations: [], style: DEFAULT_STYLE, sample: true };
 type Dialog = 'capture' | 'shortcuts' | 'recent' | null;
 
@@ -50,7 +64,7 @@ export default function App() {
   const [future, setFuture] = useState<ShotDocument[]>([]);
   const [tool, setTool] = useState<Tool>('select');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [defaults, setDefaults] = useState({ color: '#000000', strokeWidth: 4, fontSize: 32, fill: null as string | null, radius: 3, opacity: 100 });
+  const [defaults, setDefaults] = useState({ color: '#000000', strokeWidth: 4, fontSize: 32, fill: null as string | null, radius: 3, opacity: 100, arrowStyle: 'straight' as ArrowStyle, curve: ARROW_CURVE_DEFAULT, arrowHead: 'chevron' as ArrowHead, arrowEnds: 'head' as ArrowEnds, headSize: 0, arrowTurn: 'horizontal-first' as ArrowTurn });
   const [zoom, setZoom] = useState(1);
   const [actualZoom, setActualZoom] = useState(1);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -59,7 +73,9 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [format, setFormat] = useState<ExportFormat>('png');
   const [exportScale, setExportScale] = useState(1);
+  const [pdfPageSize, setPdfPageSize] = useState<PdfPageSize>('auto');
   const [exporting, setExporting] = useState(false);
+  const exportBusy = useRef(false);
   const [exportPreview, setExportPreview] = useState('');
   const [recent, setRecent] = useState<CaptureRecord[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -78,7 +94,9 @@ export default function App() {
     });
     return found || 1;
   }, [doc.annotations, selected]);
-  const selectedName = selected ? layerDisplayName(selected, selectedIndex) : 'Screenshot';
+  // With nothing selected the panel is describing the tool in hand, not the image, so
+  // the header has to name that tool rather than fall back to the screenshot.
+  const selectedName = selected ? layerDisplayName(selected, selectedIndex) : tool === 'select' || tool === 'crop' ? 'Screenshot' : layerLabel(tool);
 
   /** Steps the on-screen scale by whole percentage points (5% per click). */
   const zoomBy = useCallback((delta: number) => {
@@ -188,6 +206,15 @@ export default function App() {
     updateAnnotation(selected.id, patch);
   }
 
+  /**
+   * An arrow setting applies to the arrow in hand, and otherwise sets the style the
+   * next arrow is drawn with, which is what the keyboard shortcuts rely on.
+   */
+  function sendArrow(patch: Partial<Annotation>) {
+    if (selected?.type === 'arrow') patchLayer(patch);
+    else setDefaults(current => ({ ...current, ...patch }));
+  }
+
   useEffect(() => {
     let live = true;
     (async () => {
@@ -200,6 +227,8 @@ export default function App() {
           if (!capture) throw new Error('This capture is no longer available. Import an image or take a new screenshot.');
           const dataUrl = await materializeCapture(capture);
           if (live) setDoc({ ...initialDocument, name: capture.name, imageSrc: dataUrl, sample: false, captureId: id });
+          const reduced = reducedCaptureNotice(capture);
+          if (live && reduced) notify(reduced);
         } else {
           const draft = await readDraft();
           if (draft && live) setDoc({ ...draft, style: { ...DEFAULT_STYLE, ...draft.style } });
@@ -237,14 +266,21 @@ export default function App() {
 
   useEffect(() => {
     if (!exportOpen || !image) return;
-    try {
-      const preview = renderComposition(image, doc.annotations, doc.style, Math.min(1, 420 / size.width, 260 / size.height));
-      setExportPreview(preview.toDataURL('image/png'));
-      preview.width = 1;
-      preview.height = 1;
-    } catch {
-      setExportPreview('');
-    }
+    let live = true;
+    void (async () => {
+      let preview: HTMLCanvasElement | undefined;
+      try {
+        await document.fonts.ready;
+        if (!live) return;
+        preview = renderComposition(image, doc.annotations, doc.style, Math.min(1, 420 / size.width, 260 / size.height));
+        setExportPreview(preview.toDataURL('image/png'));
+      } catch {
+        if (live) setExportPreview('');
+      } finally {
+        if (preview) { preview.width = 1; preview.height = 1; }
+      }
+    })();
+    return () => { live = false; };
   }, [exportOpen, image, doc.annotations, doc.style, size.width, size.height]);
 
   useEffect(() => {
@@ -259,6 +295,26 @@ export default function App() {
       if (mod) return;
       if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); deleteSelected(); }
       if (event.key === 'Escape') { setTool('select'); setSelectedId(null); setMenuOpen(false); setExportOpen(false); }
+      // Shift with a tool key takes the shortcut further: on Line it cycles the arrow
+      // body, and the brackets step its bend, the way a weight does.
+      if (event.shiftKey && event.key.toLowerCase() === 'a') {
+        event.preventDefault();
+        if (tool !== 'arrow') { setTool('arrow'); return; }
+        const next = ARROW_STYLE_ORDER[(ARROW_STYLE_ORDER.indexOf(selected?.arrowStyle ?? defaults.arrowStyle) + 1) % ARROW_STYLE_ORDER.length];
+        sendArrow({ arrowStyle: next });
+        notify(`Arrow body: ${ARROW_STYLE_LABELS[next]}.`);
+        return;
+      }
+      if (event.key === '[' || event.key === ']') {
+        if (selected?.type !== 'arrow' && tool !== 'arrow') return;
+        event.preventDefault();
+        const style = selected?.arrowStyle ?? defaults.arrowStyle;
+        const base = selected?.curve ?? defaults.curve ?? ARROW_CURVE_DEFAULT;
+        const next = Math.round((base + (event.key === ']' ? 0.1 : -0.1)) * 100) / 100;
+        // A rounded corner only rounds one way, so it never goes below flat.
+        sendArrow({ curve: Math.max(style === 'elbow' ? 0 : -1, Math.min(1, next)) });
+        return;
+      }
       const match = TOOLS.find(tool => tool.key.toLowerCase() === event.key.toLowerCase());
       if (match) { event.preventDefault(); setTool(match.id); }
       if (event.key === '0') setZoom(1);
@@ -307,7 +363,8 @@ export default function App() {
   });
 
   async function exportImage(copy = false) {
-    if (!image || exporting) return;
+    if (!image || exportBusy.current) return;
+    exportBusy.current = true;
     setExporting(true);
     try {
       const outputSize = getCompositionSize(image, doc.style);
@@ -315,15 +372,29 @@ export default function App() {
       if (outputSize.width * outputSize.height * scale ** 2 > 64_000_000 || Math.max(outputSize.width, outputSize.height) * scale > 32760) {
         throw new Error('This export is too large. Reduce the export scale or the canvas padding.');
       }
-      const canvas = renderComposition(image, doc.annotations, doc.style, scale);
+      const encode = async (outputFormat: ExportFormat) => {
+        let canvas: HTMLCanvasElement | undefined;
+        try {
+          await document.fonts.ready;
+          if (outputFormat === 'pdf') {
+            // Give the working indicator a paint before rendering and encoding.
+            await new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+          }
+          canvas = renderComposition(image, doc.annotations, doc.style, scale);
+          return await createExportBlob(canvas, outputFormat, { pageSize: pdfPageSize, originalSize: outputSize });
+        } finally {
+          if (canvas) { canvas.width = 1; canvas.height = 1; }
+        }
+      };
       if (copy) {
-        // Copy always hands over a PNG, whatever the format row is set to.
-        const blobPromise = new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => (blob ? resolve(blob) : reject(new Error('Could not create the image.'))), 'image/png'));
         if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Clipboard is unavailable here. Download your image instead.');
+        // Call write during the click; the PNG promise can await fonts and render.
+        const blobPromise = encode('png');
+        void blobPromise.catch(() => undefined);
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]);
         notify('Image copied to clipboard.');
       } else {
-        const blob = await createExportBlob(canvas, format);
+        const blob = await encode(format);
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
@@ -333,11 +404,10 @@ export default function App() {
         setExportOpen(false);
         notify('Export started.');
       }
-      canvas.width = 1;
-      canvas.height = 1;
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Export failed. Try PNG at 1×.');
     } finally {
+      exportBusy.current = false;
       setExporting(false);
     }
   }
@@ -347,6 +417,8 @@ export default function App() {
       const saved = await readDraft(`capture:${capture.id}`);
       const imageSrc = saved?.imageSrc || await materializeCapture(capture);
       commit(saved ? { ...saved, style: { ...DEFAULT_STYLE, ...saved.style } } : { imageSrc, name: capture.name, annotations: [], style: DEFAULT_STYLE, sample: false, captureId: capture.id });
+      const reduced = reducedCaptureNotice(capture);
+      if (reduced) notify(reduced);
       setDialog(null);
       setZoom(1);
     } catch {
@@ -405,13 +477,15 @@ export default function App() {
           <ExportMenu
             format={format}
             scale={exportScale}
+            pageSize={pdfPageSize}
             width={size.width}
             height={size.height}
             preview={exportPreview}
             exporting={exporting}
             ready={!!image}
-            onFormat={setFormat}
+            onFormat={next => { setFormat(next); if (next === 'pdf') setExportScale(current => Math.max(1, current)); }}
             onScale={setExportScale}
+            onPageSize={setPdfPageSize}
             onDownload={() => exportImage(false)}
             onCopy={() => exportImage(true)}
             onClose={() => setExportOpen(false)}
@@ -443,6 +517,7 @@ export default function App() {
               tool={tool}
               color={defaults.color}
               strokeWidth={defaults.strokeWidth}
+              arrow={defaults}
               textSize={defaults.fontSize}
               style={doc.style}
               zoom={zoom}
@@ -470,19 +545,23 @@ export default function App() {
       </div>
 
       {dialog === 'capture' && (
-        <Modal title="Capture a screenshot" subtitle="Grab an area, the visible page, or the full scroll." onClose={() => setDialog(null)}>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" className="flex flex-col items-start gap-1 p-3 rounded-lg bg-panel text-left hover:bg-accent-soft" onClick={() => fileInput.current?.click()}>
-              <Icon name="upload" size={20} className="text-ink-2" />
-              <strong className="text-[12px] font-medium">Import an image</strong>
-              <span className="text-[10px] leading-[1.5] text-ink-3">PNG, JPG, WebP or GIF</span>
-            </button>
-            <a className="flex flex-col items-start gap-1 p-3 rounded-lg bg-panel text-left hover:bg-accent-soft" href="./popup.html" target="_blank" rel="noreferrer">
-              <Icon name="camera" size={20} className="text-ink-2" />
-              <strong className="text-[12px] font-medium">Open capture popup</strong>
-              <span className="text-[10px] leading-[1.5] text-ink-3">Load the dist folder as an unpacked extension</span>
-            </a>
+        <Modal title="Capture a screenshot" subtitle="Capture a webpage with ImageShot, or import an image." onClose={() => setDialog(null)}>
+          <div className="flex items-start gap-2.5 p-3 rounded-lg bg-panel">
+            <Icon name="camera" size={20} className="mt-0.5 text-ink-2" />
+            <div>
+              <strong className="text-[12px] font-medium">Start from the webpage</strong>
+              <p className="mt-1 text-[11px] leading-[1.6] text-ink-2">Switch to the page you want to capture, then click ImageShot in your browser toolbar or press <kbd className="whitespace-nowrap font-ui">Alt + Shift + S</kbd>.</p>
+            </div>
           </div>
+          <p className="px-3 text-[10px] leading-[1.6] text-ink-2">Webpage capture requires the ImageShot extension in Chrome or Edge. Browser settings pages and extension stores cannot be captured. Keep the page active while capturing.</p>
+          <button type="button" className="flex items-center gap-2.5 p-3 rounded-lg bg-panel text-left hover:bg-accent-soft" onClick={() => fileInput.current?.click()}>
+            <Icon name="upload" size={20} className="text-ink-2" />
+            <span className="flex flex-1 flex-col gap-1">
+              <strong className="text-[12px] font-medium">Import an image</strong>
+              <span className="text-[10px] leading-[1.5] text-ink-2">PNG, JPG, WebP or GIF</span>
+            </span>
+            <Icon name="right" size={16} className="text-ink-3" />
+          </button>
         </Modal>
       )}
 
@@ -495,7 +574,7 @@ export default function App() {
                 <kbd className="font-ui text-[10px] font-[450] px-1 py-0.5 rounded-[4px] whitespace-nowrap bg-field text-ink-2 shadow-[inset_0_0_0_1px_rgba(0,0,0,.05)]">{tool.key}</kbd>
               </div>
             ))}
-            {[['Undo', 'Ctrl Z'], ['Redo', 'Ctrl Shift Z'], ['Export', 'Ctrl S'], ['Import image', 'Ctrl O'], ['Duplicate layer', 'Ctrl D'], ['Delete layer', 'Delete'], ['Fit canvas', '0']].map(([label, keys]) => (
+            {[['Cycle arrow body', 'Shift A'], ['Bend arrow', '[  ]'], ['Undo', 'Ctrl Z'], ['Redo', 'Ctrl Shift Z'], ['Export', 'Ctrl S'], ['Import image', 'Ctrl O'], ['Duplicate layer', 'Ctrl D'], ['Delete layer', 'Delete'], ['Fit canvas', '0']].map(([label, keys]) => (
               <div key={label} className="flex items-center justify-between h-7 px-2 rounded-[5px] odd:bg-panel"><span>{label}</span><kbd className="font-ui text-[10px] font-[450] px-1 py-0.5 rounded-[4px] whitespace-nowrap bg-field text-ink-2 shadow-[inset_0_0_0_1px_rgba(0,0,0,.05)]">{keys}</kbd></div>
             ))}
           </div>
@@ -511,7 +590,7 @@ export default function App() {
                   <span className="grid place-items-center w-7 h-7 rounded-[6px] bg-field text-ink-3"><Icon name="image" size={18} /></span>
                   <div className="flex flex-col gap-0.5 min-w-0">
                     <strong className="text-app font-medium overflow-hidden whitespace-nowrap text-ellipsis">{capture.name}</strong>
-                    <small className="text-[10px] text-ink-3">{capture.width} × {capture.height} · {new Date(capture.createdAt).toLocaleDateString()}</small>
+                    <small className="text-[10px] text-ink-3">{captureDimensions(capture)} · {new Date(capture.createdAt).toLocaleDateString()}</small>
                   </div>
                   <Icon name="right" size={15} className="text-ink-3 ml-auto" />
                 </button>

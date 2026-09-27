@@ -1,4 +1,4 @@
-import type { Annotation, CompositionSize, CompositionStyle } from './editor-types';
+import type { Annotation, ArrowStyle, CompositionSize, CompositionStyle, Point } from './editor-types';
 import { DEFAULT_STYLE } from './editor-types';
 
 /** Height of the fake browser chrome drawn above the screenshot. */
@@ -7,15 +7,190 @@ export const FRAME_HEADER = 40;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 const MAX_PIXELS = 64_000_000;
-const MAX_SIDE = 32_000;
+const MAX_SIDE = 32_760;
 
 function safeDimension(value: number) {
-  if (!Number.isFinite(value) || value < 1) return 0;
-  return Math.max(1, Math.min(MAX_SIDE, Math.floor(value)));
+  if (!Number.isFinite(value) || value <= 0 || value > MAX_SIDE) return 0;
+  // Round outward to include the final edge; never silently clamp away content.
+  return Math.max(1, Math.ceil(value));
 }
 
 function styleNumber(value: number | undefined, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+export interface ArrowGeometry {
+  kind: 'straight' | 'curved' | 'elbow';
+  tail: Point;
+  tip: Point;
+  /** Curved: the bow's control point. */
+  control?: Point;
+  /** Elbow: the corner before it is filleted. */
+  corner?: Point;
+  /** Elbow: where the fillet leaves the first leg and joins the second. */
+  enter?: Point;
+  exit?: Point;
+  /** Elbow: the centre of the fillet's quarter circle. */
+  centre?: Point;
+  /** Elbow: the fillet radius, 0 for a square corner. */
+  radius: number;
+  /** The way the body arrives at the tip, so the arrowhead lines up with it. */
+  angle: number;
+  /** The way the body leaves the tail, for a head on the near end. */
+  startAngle: number;
+  length: number;
+  /**
+   * The body flattened to points, for hit testing and the bend handle. Drawing uses
+   * the analytic pieces above, so these samples are never what is painted.
+   */
+  path: Point[];
+}
+
+/** Arrows saved before the bend system have no curve of their own. */
+export const ARROW_CURVE_DEFAULT = 0.4;
+
+export function arrowCurve(annotation: Annotation): number {
+  return clamp(styleNumber(annotation.curve, ARROW_CURVE_DEFAULT), -1, 1);
+}
+
+function arrowEnds(annotation: Annotation) {
+  return {
+    tail: { x: annotation.x, y: annotation.y },
+    tip: { x: annotation.x + annotation.width, y: annotation.y + annotation.height },
+  };
+}
+
+/**
+ * The one place an arrow's shape is decided. The canvas preview, the pointer hit test
+ * and the exported image all read this, so a bent arrow can never be drawn one way and
+ * picked another.
+ */
+export function arrowGeometry(annotation: Annotation): ArrowGeometry {
+  const { tail, tip } = arrowEnds(annotation);
+  const dx = tip.x - tail.x;
+  const dy = tip.y - tail.y;
+  const length = Math.hypot(dx, dy);
+  const style = annotation.arrowStyle || 'straight';
+  const angle = Math.atan2(dy, dx);
+  const base: ArrowGeometry = { kind: 'straight', tail, tip, radius: 0, angle, startAngle: angle, length, path: [tail, tip] };
+  // A drag too short to bend has no room for a bow or a corner.
+  if (style === 'straight' || length < 1) return base;
+
+  const curve = arrowCurve(annotation);
+
+  if (style === 'curved') {
+    // A quadratic bow: the control point sits off the chord, so the body leaves it by
+    // half that offset at its midpoint, and negative values bow the other way.
+    const offset = curve * length;
+    const control = { x: (tail.x + tip.x) / 2 - (dy / length) * offset, y: (tail.y + tip.y) / 2 + (dx / length) * offset };
+    const steps = Math.max(8, Math.min(96, Math.ceil(length / 6)));
+    const path: Point[] = [];
+    for (let index = 0; index <= steps; index += 1) {
+      const t = index / steps;
+      const inverse = 1 - t;
+      path.push({
+        x: inverse * inverse * tail.x + 2 * inverse * t * control.x + t * t * tip.x,
+        y: inverse * inverse * tail.y + 2 * inverse * t * control.y + t * t * tip.y,
+      });
+    }
+    return {
+      ...base,
+      kind: 'curved',
+      control,
+      // The exact tangents at each end, not the last sampled step, so a head drawn on
+      // either end stays square to the body.
+      angle: Math.atan2(tip.y - control.y, tip.x - control.x),
+      startAngle: Math.atan2(control.y - tail.y, control.x - tail.x),
+      path,
+    };
+  }
+
+  // A bent arrow turns at one of the two corners of its own box, then runs to the tip.
+  const horizontalFirst = (annotation.arrowTurn || 'horizontal-first') === 'horizontal-first';
+  const corner = horizontalFirst ? { x: tip.x, y: tail.y } : { x: tail.x, y: tip.y };
+  const along = (from: Point, to: Point): Point => {
+    const distance = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+    return { x: (to.x - from.x) / distance, y: (to.y - from.y) / distance };
+  };
+  const first = along(tail, corner);
+  const second = along(corner, tip);
+  // Never let the fillet eat more than half of either leg, or the body folds back.
+  const firstLength = Math.hypot(corner.x - tail.x, corner.y - tail.y);
+  const secondLength = Math.hypot(tip.x - corner.x, tip.y - corner.y);
+  const radius = Math.min(Math.abs(curve) * Math.min(firstLength, secondLength) / 2, firstLength / 2, secondLength / 2);
+  const leaves = Math.atan2(first.y, first.x);
+  if (radius < 0.5) {
+    return { ...base, kind: 'elbow', corner, angle: Math.atan2(second.y, second.x), startAngle: leaves, path: [tail, corner, tip] };
+  }
+  // The legs are perpendicular, so the fillet is always an exact quarter circle: it is
+  // tangent to each leg a radius back, and centred where those two tangents cross.
+  const enter = { x: corner.x - first.x * radius, y: corner.y - first.y * radius };
+  const exit = { x: corner.x + second.x * radius, y: corner.y + second.y * radius };
+  const centre = { x: enter.x + second.x * radius, y: enter.y + second.y * radius };
+  const steps = 12;
+  const from = Math.atan2(enter.y - centre.y, enter.x - centre.x);
+  // The turn runs anticlockwise exactly when the first leg turns into the second.
+  const sweep = (first.x * second.y - first.y * second.x > 0 ? 1 : -1) * (Math.PI / 2);
+  const path: Point[] = [tail, enter];
+  for (let index = 1; index < steps; index += 1) {
+    const angleAt = from + sweep * (index / steps);
+    path.push({ x: centre.x + Math.cos(angleAt) * radius, y: centre.y + Math.sin(angleAt) * radius });
+  }
+  path.push(exit, tip);
+  return {
+    ...base,
+    kind: 'elbow',
+    corner,
+    enter,
+    exit,
+    centre,
+    radius,
+    angle: Math.atan2(tip.y - exit.y, tip.x - exit.x),
+    startAngle: leaves,
+    path,
+  };
+}
+
+/** The curve value that puts the body under a point, for dragging the bend handle. */
+export function arrowCurveAt(annotation: Annotation, point: Point): number {
+  const { tail, tip } = arrowEnds(annotation);
+  const dx = tip.x - tail.x;
+  const dy = tip.y - tail.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 1) return 0;
+  const curve = arrowCurve(annotation);
+  if ((annotation.arrowStyle || 'straight') === 'elbow') {
+    // A bigger radius pulls the fillet away from the corner along the bisector of the
+    // two legs, so the drag is projected onto that one direction.
+    const horizontalFirst = (annotation.arrowTurn || 'horizontal-first') === 'horizontal-first';
+    const corner = horizontalFirst ? { x: tip.x, y: tail.y } : { x: tail.x, y: tip.y };
+    const firstLength = Math.hypot(corner.x - tail.x, corner.y - tail.y);
+    const secondLength = Math.hypot(tip.x - corner.x, tip.y - corner.y);
+    const limit = Math.min(firstLength, secondLength) / 2;
+    if (limit < 1) return 0;
+    const first = { x: (corner.x - tail.x) / (firstLength || 1), y: (corner.y - tail.y) / (firstLength || 1) };
+    const second = { x: (tip.x - corner.x) / (secondLength || 1), y: (tip.y - corner.y) / (secondLength || 1) };
+    const away = { x: -first.x + second.x, y: -first.y + second.y };
+    const scale = Math.SQRT1_2;
+    const moved = (point.x - corner.x) * away.x * scale + (point.y - corner.y) * away.y * scale;
+    return clamp(moved / limit, 0, 1);
+  }
+  // Signed distance off the chord, so the handle picks up whichever side it is on.
+  const signed = ((point.x - (tail.x + tip.x) / 2) * -dy + (point.y - (tail.y + tip.y) / 2) * dx) / length;
+  return clamp((2 * signed) / length, -1, 1);
+}
+
+/** Where the bend handle sits: the body's own midpoint, bowed or cornered. */
+export function arrowBendPoint(annotation: Annotation): Point {
+  const path = arrowGeometry(annotation).path;
+  return path[Math.floor(path.length / 2)];
+}
+
+/** Head length, following the stroke weight unless the layer set its own. */
+export function arrowHeadSize(annotation: Annotation, length: number): number {
+  const own = styleNumber(annotation.headSize, 0);
+  const size = own > 0 ? own : Math.max(14, annotation.strokeWidth * 4);
+  return Math.min(size, Math.max(6, length * 0.5));
 }
 
 /** The two families the app ships, so the canvas never guesses a missing face. */
@@ -134,6 +309,56 @@ export function annotationBounds(annotation: Annotation) {
   };
 }
 
+/** Traces an arrow's body with native path commands, so it stays true at any zoom. */
+function traceArrowBody(ctx: CanvasRenderingContext2D, geometry: ArrowGeometry) {
+  ctx.beginPath();
+  ctx.moveTo(geometry.tail.x, geometry.tail.y);
+  if (geometry.kind === 'curved' && geometry.control) {
+    ctx.quadraticCurveTo(geometry.control.x, geometry.control.y, geometry.tip.x, geometry.tip.y);
+    return;
+  }
+  if (geometry.kind === 'elbow' && geometry.enter && geometry.exit && geometry.corner && geometry.radius > 0) {
+    // The corner itself is the first control point, which is what makes the browser
+    // tangent to both legs instead of to the chord between them.
+    ctx.lineTo(geometry.enter.x, geometry.enter.y);
+    ctx.arcTo(geometry.corner.x, geometry.corner.y, geometry.exit.x, geometry.exit.y, geometry.radius);
+    ctx.lineTo(geometry.tip.x, geometry.tip.y);
+    return;
+  }
+  if (geometry.kind === 'elbow' && geometry.corner) ctx.lineTo(geometry.corner.x, geometry.corner.y);
+  ctx.lineTo(geometry.tip.x, geometry.tip.y);
+}
+
+/** One head at `at`, pointing along `angle`. Filled heads are closed, the rest stroked. */
+function drawArrowHead(ctx: CanvasRenderingContext2D, annotation: Annotation, at: Point, angle: number, size: number) {
+  const style = annotation.arrowHead || 'chevron';
+  if (style === 'none') return;
+  const spread = Math.PI / 6;
+  if (style === 'dot') {
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, Math.max(2, size * 0.32), 0, Math.PI * 2);
+    ctx.fillStyle = ctx.strokeStyle as string;
+    ctx.fill();
+    return;
+  }
+  if (style === 'triangle') {
+    ctx.beginPath();
+    ctx.moveTo(at.x, at.y);
+    ctx.lineTo(at.x - size * Math.cos(angle - spread), at.y - size * Math.sin(angle - spread));
+    ctx.lineTo(at.x - size * Math.cos(angle) * 0.82, at.y - size * Math.sin(angle) * 0.82);
+    ctx.lineTo(at.x - size * Math.cos(angle + spread), at.y - size * Math.sin(angle + spread));
+    ctx.closePath();
+    ctx.fillStyle = ctx.strokeStyle as string;
+    ctx.fill();
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(at.x - size * Math.cos(angle - spread), at.y - size * Math.sin(angle - spread));
+  ctx.lineTo(at.x, at.y);
+  ctx.lineTo(at.x - size * Math.cos(angle + spread), at.y - size * Math.sin(angle + spread));
+  ctx.stroke();
+}
+
 export function drawAnnotation(ctx: CanvasRenderingContext2D, annotation: Annotation, source: HTMLImageElement) {
   if (annotation.hidden) return;
   const a = annotation;
@@ -159,19 +384,12 @@ export function drawAnnotation(ctx: CanvasRenderingContext2D, annotation: Annota
       ctx.stroke();
       break;
     case 'arrow': {
-      const endX = a.x + a.width;
-      const endY = a.y + a.height;
-      const angle = Math.atan2(a.height, a.width);
-      const head = Math.min(Math.hypot(a.width, a.height) * 0.5, Math.max(14, a.strokeWidth * 4));
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(endX, endY);
+      const geometry = arrowGeometry(a);
+      traceArrowBody(ctx, geometry);
       ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(endX - head * Math.cos(angle - Math.PI / 6), endY - head * Math.sin(angle - Math.PI / 6));
-      ctx.lineTo(endX, endY);
-      ctx.lineTo(endX - head * Math.cos(angle + Math.PI / 6), endY - head * Math.sin(angle + Math.PI / 6));
-      ctx.stroke();
+      const head = arrowHeadSize(a, geometry.length);
+      drawArrowHead(ctx, a, geometry.tip, geometry.angle, head);
+      if ((a.arrowEnds || 'head') === 'both') drawArrowHead(ctx, a, geometry.tail, geometry.startAngle, head);
       break;
     }
     case 'pen': {
@@ -330,7 +548,7 @@ export function renderComposition(image: HTMLImageElement, annotations: Annotati
   // take the whole editor down with it.
   const width = safeDimension(size.width * ratio);
   const height = safeDimension(size.height * ratio);
-  if (!width || !height) {
+  if (!width || !height || width * height > MAX_PIXELS) {
     if (target) return canvas;
     throw new Error('This composition is too large to render.');
   }

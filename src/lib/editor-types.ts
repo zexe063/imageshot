@@ -11,6 +11,26 @@ export type Tool =
   /** Legacy: kept so older documents keep rendering. Not offered in the toolbar. */
   | 'number';
 
+/** How an arrow's body runs between its two ends. */
+export type ArrowStyle = 'straight' | 'curved' | 'elbow';
+/** What the arrow ends in. `chevron` is the open head arrows have always drawn. */
+export type ArrowHead = 'chevron' | 'triangle' | 'dot' | 'none';
+/** Which ends carry a head. */
+export type ArrowEnds = 'head' | 'both';
+/** Which leg a bent arrow takes first. */
+export type ArrowTurn = 'horizontal-first' | 'vertical-first';
+
+/** The arrow settings a newly drawn arrow starts with. */
+export interface ArrowDefaults {
+  arrowStyle: ArrowStyle;
+  curve: number;
+  arrowHead: ArrowHead;
+  arrowEnds: ArrowEnds;
+  /** 0 keeps the head following the stroke weight. */
+  headSize: number;
+  arrowTurn: ArrowTurn;
+}
+
 export interface Point {
   x: number;
   y: number;
@@ -27,6 +47,21 @@ export interface Annotation {
   /** Outline colour, and the text colour for text layers. */
   color: string;
   strokeWidth: number;
+  /** Arrow body shape. Defaults to `straight`. */
+  arrowStyle?: ArrowStyle;
+  /**
+   * -1 to 1. A curved arrow bows this far off its chord, to either side; an elbow
+   *  uses it for how far the corner is rounded. Defaults to 0.4.
+   */
+  curve?: number;
+  /** Arrowhead shape. Defaults to `chevron`. */
+  arrowHead?: ArrowHead;
+  /** `both` puts a head on the tail as well. Defaults to `head`. */
+  arrowEnds?: ArrowEnds;
+  /** Head length in screenshot pixels. Defaults to the stroke-weight scale. */
+  headSize?: number;
+  /** Which leg a bent arrow takes first. Defaults to `horizontal-first`. */
+  arrowTurn?: ArrowTurn;
   /** Shape background colour. `null` keeps the shape outline only. */
   fill?: string | null;
   text?: string;

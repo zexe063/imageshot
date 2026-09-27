@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
-import type { Annotation, CompositionStyle, Point, Tool } from '../lib/editor-types';
-import { annotationBounds, getCompositionSize, renderComposition, textFrame, textMetrics, textStack } from '../lib/render';
+import type { Annotation, ArrowDefaults, CompositionStyle, Point, Tool } from '../lib/editor-types';
+import { annotationBounds, arrowBendPoint, arrowCurveAt, arrowGeometry, getCompositionSize, renderComposition, textFrame, textMetrics, textStack } from '../lib/render';
 
 export interface EditorCanvasProps {
   image: HTMLImageElement | null;
@@ -12,6 +12,8 @@ export interface EditorCanvasProps {
   tool: Tool;
   color: string;
   strokeWidth: number;
+  /** The arrow body, bend and head a newly drawn arrow starts with. */
+  arrow: ArrowDefaults;
   textSize: number;
   style: CompositionStyle;
   /** 1 is fit; other values multiply the fitted scale. */
@@ -25,7 +27,7 @@ export interface EditorCanvasProps {
 
 type Handle = 'nw' | 'ne' | 'sw' | 'se';
 interface Gesture {
-  mode: 'draw' | 'move' | 'resize' | 'crop';
+  mode: 'draw' | 'move' | 'resize' | 'bend' | 'crop';
   start: Point;
   base?: Annotation;
   handle?: Handle;
@@ -53,7 +55,14 @@ function distanceToLine(point: Point, start: Point, end: Point) {
 function contains(annotation: Annotation, point: Point, tolerance: number) {
   if (annotation.hidden || annotation.locked) return false;
   if (annotation.type === 'arrow') {
-    return distanceToLine(point, annotation, { x: annotation.x + annotation.width, y: annotation.y + annotation.height }) <= Math.max(tolerance, annotation.strokeWidth * 2);
+    // The same body the canvas draws, so a bowed arrow is picked where it is drawn
+    // and not along the straight chord between its ends.
+    const path = arrowGeometry(annotation).path;
+    const reach = Math.max(tolerance, annotation.strokeWidth * 2);
+    for (let index = 1; index < path.length; index += 1) {
+      if (distanceToLine(point, path[index - 1], path[index]) <= reach) return true;
+    }
+    return false;
   }
   if (annotation.type === 'pen') {
     const points = annotation.points || [];
@@ -104,7 +113,7 @@ function textDimensions(annotation: Annotation, text: string, fontSize: number) 
   return textFrame({ ...annotation, text, fontSize: annotation.fontSize || fontSize });
 }
 
-export function EditorCanvas({ image, annotations, onChange, selectedId, onSelect, tool, color, strokeWidth, textSize, style, zoom, onToolChange, onCrop, onStatus, onZoomChange }: EditorCanvasProps) {
+export function EditorCanvas({ image, annotations, onChange, selectedId, onSelect, tool, color, strokeWidth, arrow, textSize, style, zoom, onToolChange, onCrop, onStatus, onZoomChange }: EditorCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const artboardRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -205,12 +214,22 @@ export function EditorCanvas({ image, annotations, onChange, selectedId, onSelec
   const pointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!image || !size || event.button !== 0 || textEditorRef.current) return;
     const point = coordinates(event, false);
-    const handle = (event.target as Element).getAttribute?.('data-handle') as Handle | null;
+    const target = event.target as Element;
+    const handle = target.getAttribute?.('data-handle') as Handle | null;
     const selected = annotations.find(a => a.id === selectedId && !a.hidden && !a.locked);
     if (handle && selected) {
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
       gestureRef.current = { mode: 'resize', start: point, base: selected, handle };
+      setDraft(selected);
+      return;
+    }
+    // The bend handle sits on the arrow's own body, so it is picked before the
+    // layer underneath it.
+    if (target.getAttribute?.('data-bend') && selected?.type === 'arrow' && (selected.arrowStyle || 'straight') !== 'straight') {
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      gestureRef.current = { mode: 'bend', start: point, base: selected };
       setDraft(selected);
       return;
     }
@@ -241,6 +260,11 @@ export function EditorCanvas({ image, annotations, onChange, selectedId, onSelec
     const annotation: Annotation = {
       id: crypto.randomUUID(), type: tool, x: point.x, y: point.y, width: 0, height: 0, color, strokeWidth,
     };
+    if (tool === 'arrow') {
+      // A new arrow starts on the style, bend and head last used, so the next one in a
+      // series matches without touching the panel again.
+      Object.assign(annotation, arrow);
+    }
     if (tool === 'text') {
       // Keep the original pointer's default focus action from immediately
       // blurring the inline editor that React mounts during this event.
@@ -288,6 +312,8 @@ export function EditorCanvas({ image, annotations, onChange, selectedId, onSelec
       const x = base.x + point.x - gesture.start.x;
       const y = base.y + point.y - gesture.start.y;
       setDraft({ ...base, x, y });
+    } else if (gesture.mode === 'bend') {
+      setDraft({ ...base, curve: arrowCurveAt(base, point) });
     } else if (gesture.mode === 'resize' && gesture.handle) {
       setDraft(resizeAnnotation(base, gesture.handle, point));
     } else if (base.type === 'pen') {
@@ -365,13 +391,19 @@ export function EditorCanvas({ image, annotations, onChange, selectedId, onSelec
 
   const selected = visibleAnnotations.find(a => a.id === selectedId && !a.hidden);
   const selection = selected ? annotationBounds(selected) : null;
-  const cursor = tool === 'select' ? (gestureRef.current?.mode === 'move' ? 'grabbing' : 'default') : tool === 'text' ? 'text' : 'crosshair';
+  const cursor = tool === 'select'
+    ? gestureRef.current?.mode === 'move' ? 'grabbing' : gestureRef.current?.mode === 'bend' ? 'grabbing' : 'default'
+    : tool === 'text' ? 'text' : 'crosshair';
   const handlePositions: { key: Handle; x: number; y: number }[] = selection ? [
     { key: 'nw', x: selection.x, y: selection.y },
     { key: 'ne', x: selection.x + selection.width, y: selection.y },
     { key: 'sw', x: selection.x, y: selection.y + selection.height },
     { key: 'se', x: selection.x + selection.width, y: selection.y + selection.height },
   ] : [];
+  // Only a bent arrow can be bent further, so the handle belongs to those alone.
+  const bent = selected?.type === 'arrow' && (selected.arrowStyle || 'straight') !== 'straight' && !selected.locked;
+  const bendHandle = bent && !textEditor && !crop ? arrowBendPoint(selected) : null;
+  const chord = bent ? { x: selected.x + selected.width / 2, y: selected.y + selected.height / 2 } : null;
   const editorMetrics = textMetrics({
     id: 'editor', type: 'text', x: 0, y: 0, width: 0, height: 0, color: '#000000', strokeWidth: 0,
     ...(textEditor ? { ...textEditor.annotation, text: textEditor.value } : {}),
@@ -410,6 +442,14 @@ export function EditorCanvas({ image, annotations, onChange, selectedId, onSelec
                     {!selected?.locked && handlePositions.map(handle => (
                       <rect key={handle.key} data-handle={handle.key} x={handle.x - 3.5 / displayScale} y={handle.y - 3.5 / displayScale} width={7 / displayScale} height={7 / displayScale} rx={1 / displayScale} fill="white" stroke={ACCENT} strokeWidth={1.25 / displayScale} style={{ pointerEvents: 'all', cursor: `${handle.key}-resize` }} />
                     ))}
+                    {bendHandle && chord && (
+                      <g className="group">
+                        <line x1={chord.x} y1={chord.y} x2={bendHandle.x} y2={bendHandle.y} stroke={ACCENT} strokeWidth={1 / displayScale} strokeDasharray={`${3 / displayScale} ${3 / displayScale}`} opacity={0.7} />
+                        {/* A generous invisible target, so the handle is easy to grab at any zoom. */}
+                        <circle data-bend="1" cx={bendHandle.x} cy={bendHandle.y} r={9 / displayScale} fill="transparent" className="cursor-grab group-hover:cursor-grab" style={{ pointerEvents: 'all' }} />
+                        <circle cx={bendHandle.x} cy={bendHandle.y} r={4.5 / displayScale} fill="white" stroke={ACCENT} strokeWidth={1.5 / displayScale} className="transition-[fill] duration-100 group-hover:fill-[#ece9fe]" style={{ pointerEvents: 'none' }} />
+                      </g>
+                    )}
                   </>
                 )}
                 {crop && (

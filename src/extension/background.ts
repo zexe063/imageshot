@@ -83,7 +83,7 @@ function pngSize(dataUrl: string): { width: number; height: number } {
 function checkSize(width: number, height: number): void {
   if (width < 1 || height < 1) throw new Error('This page has no visible content to capture.')
   if (width > MAX_DIMENSION || height > MAX_DIMENSION || width * height > MAX_PIXELS) {
-    throw new Error('This page is too large for a full-page screenshot (48 megapixels or 32,760 pixels per side). Choose Area or Visible page instead.')
+    throw new Error('This capture is too large to save (48 megapixels or 32,760 pixels per side). Choose a smaller area and try again.')
   }
 }
 
@@ -365,7 +365,8 @@ async function captureFullPage(tab: chrome.tabs.Tab & { id: number }): Promise<C
         if (scaleX && (Math.abs(scaleX - currentScaleX) > 0.01 || Math.abs(scaleY - currentScaleY) > 0.01)) throw new Error('Display scaling changed during capture. Keep the browser on the same display and try again.')
         scaleX = currentScaleX
         scaleY = currentScaleY
-        checkSize(Math.round(width * scaleX), Math.round(height * scaleY))
+        // No canvas exists yet: the editor shrinks the composed image to fit, so an
+        // over-long page is captured at full resolution instead of being refused.
         totalBytes += dataUrl.length * 0.75
         if (totalBytes > MAX_ENCODED_BYTES) throw new Error('This image-heavy page is too large to capture at once. Choose a smaller area instead.')
         const pieceWidth = Math.min(initial.viewportWidth, width - x)
@@ -388,7 +389,6 @@ async function captureFullPage(tab: chrome.tabs.Tab & { id: number }): Promise<C
         func: () => Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0),
       })
       height = Math.max(height, latest?.result ?? height)
-      checkSize(Math.round(width * scaleX), Math.round(height * scaleY))
     }
     return { ...recordFor(tab, 'full'), width: Math.round(width * scaleX), height: Math.round(height * scaleY), tiles }
   } finally {

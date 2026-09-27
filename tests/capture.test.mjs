@@ -102,6 +102,65 @@ test('visible capture keeps pixel dimensions and opens its local editor record',
   } finally { await fixture.close() }
 })
 
+test('a capture taller than one browser canvas is reduced to fit instead of failing', async () => {
+  const fixture = await harness('<p>oversized</p>')
+  try {
+    await fixture.page.addScriptTag({ content: `${storeSource}\nwindow.__materializeCapture = materializeCapture;\nwindow.__captureFitScale = captureFitScale;` })
+    const result = await fixture.page.evaluate(async () => {
+      // 1600 x 40000 is 64 megapixels and 40000 px tall: over both the pixel budget
+      // and Chrome's 32767 px canvas side. Each tile is a 4x1 strip stretched to its
+      // slot, so a solid colour proves the tile landed at the reduced offset.
+      const width = 1600
+      const height = 40000
+      const rows = 8
+      const rowHeight = height / rows
+      const colours = [[220, 20, 60], [20, 160, 60], [40, 90, 220], [230, 160, 20], [150, 40, 200], [20, 190, 190], [240, 90, 30], [90, 90, 90]]
+      const tiles = []
+      for (let index = 0; index < rows; index += 1) {
+        const strip = document.createElement('canvas')
+        strip.width = 4
+        strip.height = 1
+        const stripContext = strip.getContext('2d')
+        stripContext.fillStyle = `rgb(${colours[index].join(',')})`
+        stripContext.fillRect(0, 0, 4, 1)
+        tiles.push({ dataUrl: strip.toDataURL('image/png'), sourceX: 0, sourceY: 0, sourceWidth: 4, sourceHeight: 1, x: 0, y: index * rowHeight, width, height: rowHeight })
+      }
+      const scale = window.__captureFitScale(width, height)
+      const dataUrl = await window.__materializeCapture({ id: 'oversized', name: 'Oversized', createdAt: 0, mode: 'full', width, height, tiles })
+      const image = new Image()
+      image.src = dataUrl
+      await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = image.width
+      canvas.height = image.height
+      const context = canvas.getContext('2d')
+      context.drawImage(image, 0, 0)
+      const column = Math.floor(image.width / 2)
+      const at = (y) => [...context.getImageData(column, y, 1, 1).data]
+      // The boundary between tile 3 and tile 4 must sit on the reduced offset.
+      const boundary = Math.round(4 * rowHeight * scale)
+      return {
+        scale,
+        width: image.width,
+        height: image.height,
+        insideThird: at(boundary - 3),
+        insideFourth: at(boundary + 3),
+        firstRow: at(2),
+        lastRow: at(image.height - 3),
+      }
+    })
+    assert.ok(result.scale < 1, 'an oversized capture must be reduced')
+    assert.equal(result.width, Math.floor(1600 * result.scale))
+    assert.equal(result.height, Math.floor(40000 * result.scale))
+    assert.ok(result.height <= 32_000, `reduced height ${result.height} must stay under the canvas side limit`)
+    assert.ok(result.width * result.height <= 48_000_000, `reduced image ${result.width}x${result.height} must stay under the pixel budget`)
+    assert.deepEqual(result.firstRow, [220, 20, 60, 255])
+    assert.deepEqual(result.insideThird, [230, 160, 20, 255])
+    assert.deepEqual(result.insideFourth, [150, 40, 200, 255])
+    assert.deepEqual(result.lastRow, [90, 90, 90, 255])
+  } finally { await fixture.close() }
+})
+
 test('full-page capture stitches the partial bottom tile and restores scrolling and sticky styles', async () => {
   const fixture = await harness(fullPageFixture)
   try {

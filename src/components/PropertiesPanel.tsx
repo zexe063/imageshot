@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Icon } from './Icon';
-import { ColorField, IconButton, NumberField, PropertyField, Row, Section, Select, WeightField } from './ui';
-import type { Annotation, CompositionStyle, Tool } from '../lib/editor-types';
-import { TEXT_FAMILIES, textMetrics } from '../lib/render';
+import { ColorField, IconButton, NumberField, PropertyField, Row, Section, Segmented, Select, SliderField, WeightField } from './ui';
+import type { Annotation, ArrowDefaults, ArrowEnds, ArrowHead, ArrowStyle, ArrowTurn, CompositionStyle, Tool } from '../lib/editor-types';
+import { ARROW_CURVE_DEFAULT, TEXT_FAMILIES, textMetrics } from '../lib/render';
 
 const FONT_SIZES = [10, 11, 12, 13, 14, 15, 16, 20, 24, 32, 36, 40, 48, 64, 96, 128];
 const FONT_WEIGHTS = [
@@ -21,8 +21,27 @@ const BACKGROUND_PRESETS = [
 
 const SHAPE_TYPES = ['rectangle', 'ellipse'];
 const LINE_TYPES = ['arrow', 'pen', 'number'];
+const ARROW_STYLES: { value: ArrowStyle; label: string }[] = [
+  { value: 'straight', label: 'Straight' },
+  { value: 'curved', label: 'Curved' },
+  { value: 'elbow', label: 'Bent' },
+];
+const ARROW_HEADS: { value: ArrowHead; label: string }[] = [
+  { value: 'chevron', label: 'Open' },
+  { value: 'triangle', label: 'Solid' },
+  { value: 'dot', label: 'Dot' },
+  { value: 'none', label: 'None' },
+];
+const ARROW_ENDS: { value: ArrowEnds; label: string }[] = [
+  { value: 'head', label: 'One end' },
+  { value: 'both', label: 'Both ends' },
+];
+const ARROW_TURNS: { value: ArrowTurn; label: string }[] = [
+  { value: 'horizontal-first', label: 'Across' },
+  { value: 'vertical-first', label: 'Down' },
+];
 
-export interface ToolDefaults {
+export interface ToolDefaults extends ArrowDefaults {
   color: string;
   strokeWidth: number;
   fontSize: number;
@@ -66,6 +85,15 @@ export default function PropertiesPanel({
   const radius = selected?.radius ?? defaults.radius;
   const opacity = selected?.opacity ?? defaults.opacity;
   const fontSize = selected?.fontSize ?? defaults.fontSize;
+  // Mirrors the renderer, so an arrow saved without these fields shows the bend and the
+  // head it is actually drawn with rather than a blank control.
+  const arrowStyle = (selected?.arrowStyle ?? defaults.arrowStyle ?? 'straight') as ArrowStyle;
+  const curve = selected?.curve ?? defaults.curve ?? ARROW_CURVE_DEFAULT;
+  const arrowHead = selected?.arrowHead ?? defaults.arrowHead ?? 'chevron';
+  const arrowEnds = selected?.arrowEnds ?? defaults.arrowEnds ?? 'head';
+  const arrowTurn = selected?.arrowTurn ?? defaults.arrowTurn ?? 'horizontal-first';
+  // A head of 0 means it still follows the stroke weight, so show what that is today.
+  const headSize = selected?.headSize || defaults.headSize || Math.max(14, weight * 4);
   // Everything below mirrors the renderer's defaults, so a layer saved without the
   // new fields still shows the values it is actually drawn with.
   const textType = textMetrics({ id: 'panel', type: 'text', x: 0, y: 0, width: 0, height: 0, color: '#000000', strokeWidth: 0, ...(selected ?? {}), text: selected?.text ?? '' });
@@ -224,6 +252,45 @@ export default function PropertiesPanel({
               />
             ) : null}
           </Section>
+        ) : null}
+
+        {type === 'arrow' ? (
+          <>
+            <Section title="Arrow" id="arrow-shape">
+              <Segmented label="Arrow style" value={arrowStyle} options={ARROW_STYLES} onChange={(value: ArrowStyle) => send('arrowStyle', value)} />
+              {arrowStyle !== 'straight' ? (
+                <>
+                  <PropertyField label={arrowStyle === 'elbow' ? 'Corner' : 'Bend'}>
+                    <SliderField
+                      label={arrowStyle === 'elbow' ? 'Arrow corner' : 'Arrow bend'}
+                      // A rounded corner has one direction; a bow can lean either way.
+                      min={arrowStyle === 'elbow' ? 0 : -100}
+                      max={100}
+                      suffix="%"
+                      value={Math.round(curve * 100)}
+                      onChange={value => send('curve', value / 100)}
+                    />
+                  </PropertyField>
+                  {arrowStyle === 'elbow' ? (
+                    <PropertyField label="Turn">
+                      <Segmented label="Arrow turn" value={arrowTurn} options={ARROW_TURNS} onChange={(value: ArrowTurn) => send('arrowTurn', value)} />
+                    </PropertyField>
+                  ) : null}
+                </>
+              ) : null}
+            </Section>
+            <Section title="Head" id="arrow-head">
+              <Segmented label="Arrowhead" value={arrowHead} options={ARROW_HEADS} onChange={(value: ArrowHead) => send('arrowHead', value)} />
+              {arrowHead !== 'none' ? (
+                <>
+                  <Segmented label="Arrowhead ends" value={arrowEnds} options={ARROW_ENDS} onChange={(value: ArrowEnds) => send('arrowEnds', value)} />
+                  <PropertyField label="Size">
+                    <NumberField value={headSize} suffix="px" min={6} max={200} icon="arrow" ariaLabel="Arrowhead size" disabled={locked} onChange={value => send('headSize', Math.round(value))} />
+                  </PropertyField>
+                </>
+              ) : null}
+            </Section>
+          </>
         ) : null}
 
         {isShape || isLine ? (

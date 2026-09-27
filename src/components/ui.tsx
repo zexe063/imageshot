@@ -195,23 +195,41 @@ export function Row({ children, className = '' }: { children: ReactNode; classNa
 }
 
 export function Segmented<T extends string | number>({
-  value, options, onChange, label,
+  value, options, onChange, label, layout = 'inline', className = '', disabled = false, busy = false,
 }: {
-  value: T; options: { value: T; label: string; icon?: IconName }[]; onChange: (value: T) => void; label?: string;
+  value: T; options: { value: T; label: string; icon?: IconName; name?: string }[]; onChange: (value: T) => void; label?: string;
+  /** `stacked` puts the icon above the label, for a roomier toolbar of few options. */
+  layout?: 'inline' | 'stacked';
+  className?: string;
+  disabled?: boolean;
+  /** Marks the pressed option as work in flight, so its icon can spin. */
+  busy?: boolean;
 }) {
+  const stacked = layout === 'stacked';
   return (
-    <div className="flex gap-0.5 p-0.5 rounded-control bg-field" role="group" aria-label={label}>
+    <div className={`flex gap-1 p-1 bg-field rounded-[13px] shadow-[inset_0_1px_2px_rgba(0,0,0,.05)] ring-1 ring-inset ring-black/[.03] ${className}`} role="group" aria-label={label}>
       {options.map(option => (
         <button
           key={String(option.value)}
           type="button"
           data-selected={value === option.value || undefined}
-          className="flex-1 inline-flex items-center justify-center gap-[5px] h-6 rounded-[4px] text-app text-ink-2 whitespace-nowrap hover:text-ink data-[selected]:bg-surface data-[selected]:text-ink data-[selected]:font-medium data-[selected]:shadow-[0_1px_2px_rgba(0,0,0,.14)]"
+          disabled={disabled}
+          className={
+            stacked
+              ? // Stacked reads as one raised card among three, the way a native toolbar
+                // does: the pill is white, the rest sit flat on the track.
+                `group flex-1 inline-flex flex-col items-center justify-center gap-[7px] min-w-0 h-[62px] rounded-[9px] text-app transition-[background-color,color,box-shadow] duration-150 disabled:cursor-wait disabled:opacity-50 hover:text-ink data-[selected]:bg-surface data-[selected]:text-ink data-[selected]:shadow-[0_1px_2px_rgba(0,0,0,.10),0_2px_6px_rgba(0,0,0,.05)] data-[selected]:ring-1 data-[selected]:ring-black/[.04] ${disabled ? 'disabled:opacity-100' : ''}`
+              : `flex-1 inline-flex items-center justify-center gap-[5px] h-6 rounded-[4px] text-app text-ink-2 whitespace-nowrap hover:text-ink data-[selected]:bg-surface data-[selected]:text-ink data-[selected]:font-medium data-[selected]:shadow-[0_1px_2px_rgba(0,0,0,.14)]`
+          }
           aria-pressed={value === option.value}
+          // A short visible label can still carry the full name for a screen reader,
+          // as long as the visible words are contained in it.
+          aria-label={option.name}
+          aria-busy={stacked ? value === option.value && !!busy : undefined}
           onClick={() => onChange(option.value)}
         >
-          {option.icon ? <Icon name={option.icon} size={14} /> : null}
-          <span>{option.label}</span>
+          {option.icon ? <Icon name={option.icon} size={stacked ? 23 : 14} className={stacked ? 'text-ink-3 group-data-[selected]:text-ink group-aria-busy:animate-busy' : undefined} /> : null}
+          <span className={stacked ? 'text-[12px] leading-[1.1] text-ink-2' : ''}>{option.label}</span>
         </button>
       ))}
     </div>

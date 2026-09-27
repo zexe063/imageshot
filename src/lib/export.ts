@@ -1,11 +1,18 @@
 export type ExportFormat = 'png' | 'jpg' | 'webp' | 'pdf'
+export type PdfPageSize = 'auto' | 'image' | 'a4'
+
+export interface PdfExportOptions {
+  pageSize?: PdfPageSize
+  /** Unscaled composition dimensions; export scale changes resolution, not paper size. */
+  originalSize?: { width: number; height: number }
+}
 
 const encoder = new TextEncoder()
 const asBytes = (text: string) => encoder.encode(text)
 
 function checkCanvas(canvas: HTMLCanvasElement): void {
   if (!canvas.width || !canvas.height) throw new Error('The canvas is empty. Add a screenshot before exporting.')
-  if (canvas.width * canvas.height > 100_000_000) throw new Error('This canvas is too large to export. Try a smaller screenshot.')
+  if (Math.max(canvas.width, canvas.height) > 32_760 || canvas.width * canvas.height > 100_000_000) throw new Error('This canvas is too large to export. Try a smaller screenshot.')
 }
 
 /**
@@ -62,6 +69,7 @@ async function imageStreams(canvas: HTMLCanvasElement): Promise<{ rgb: Uint8Arra
   void rgbResult.catch(() => undefined)
   void alphaResult.catch(() => undefined)
   let hasTransparency = false
+  let lastYield = performance.now()
   const stripHeight = Math.max(1, Math.min(256, Math.floor(524_288 / canvas.width)))
   try {
     for (let top = 0; top < canvas.height; top += stripHeight) {
@@ -80,6 +88,12 @@ async function imageStreams(canvas: HTMLCanvasElement): Promise<{ rgb: Uint8Arra
         if (alpha[pixel] !== 255) hasTransparency = true
       }
       await Promise.all([rgbWriter.write(rgb), alphaWriter.write(alpha)])
+      // Large captures can contain millions of pixels. Give the browser time to
+      // paint progress and process input between strips, including fast writers.
+      if (performance.now() - lastYield >= 16) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0))
+        lastYield = performance.now()
+      }
     }
     await Promise.all([rgbWriter.close(), alphaWriter.close()])
     const [rgb, alpha] = await Promise.all([rgbResult, alphaResult])
@@ -93,27 +107,56 @@ async function imageStreams(canvas: HTMLCanvasElement): Promise<{ rgb: Uint8Arra
   }
 }
 
-/** A4 at 72 points per inch, the page size every printer and viewer expects. */
+/** Standard A4 dimensions in PDF points (72 points per inch). */
 const A4_SHORT = 595.276
 const A4_LONG = 841.89
+const POINTS_PER_PIXEL = 72 / 96
+// PDF 1.4 readers support a maximum page side of 200 inches. Keep the bitmap
+// intact and uniformly reduce its physical placement for very long screenshots.
+const MAX_PDF_POINTS = 14_400
+
+function pdfLayout(canvas: HTMLCanvasElement, options: PdfExportOptions) {
+  const original = options.originalSize ?? canvas
+  if (![original.width, original.height].every((value) => Number.isFinite(value) && value > 0)) {
+    throw new Error('PDF image dimensions must be positive, finite numbers.')
+  }
+  const pageSize = options.pageSize ?? 'auto'
+  if (pageSize !== 'auto' && pageSize !== 'image' && pageSize !== 'a4') throw new Error('Choose Full image, Original size, or A4 for the PDF page.')
+  if (pageSize === 'auto' || pageSize === 'image') {
+    // Full image uses a conventional reading width and an unrestricted aspect
+    // ratio. Only the physical page shrinks; every source pixel stays embedded.
+    const pointsPerPixel = Math.min(
+      POINTS_PER_PIXEL,
+      pageSize === 'auto' ? A4_SHORT / original.width : Infinity,
+      MAX_PDF_POINTS / Math.max(original.width, original.height),
+    )
+    const pageWidth = original.width * pointsPerPixel
+    const pageHeight = original.height * pointsPerPixel
+    return { pageWidth, pageHeight, imageWidth: pageWidth, imageHeight: pageHeight, x: 0, y: 0 }
+  }
+  const landscape = original.width > original.height
+  const pageWidth = landscape ? A4_LONG : A4_SHORT
+  const pageHeight = landscape ? A4_SHORT : A4_LONG
+  const fit = Math.min(pageWidth / original.width, pageHeight / original.height)
+  const imageWidth = original.width * fit
+  const imageHeight = original.height * fit
+  return { pageWidth, pageHeight, imageWidth, imageHeight, x: (pageWidth - imageWidth) / 2, y: (pageHeight - imageHeight) / 2 }
+}
 
 /**
  * A PDF 1.4 image XObject and soft mask preserve every rendered pixel and its alpha.
  *
- * The composition is stretched across a single A4 sheet: no margins, nothing cut and
- * nothing split over a second page. Fitting the image inside the sheet would leave
- * empty bands, and holding the aspect ratio while covering the sheet means cropping
- * content away, so the sheet wins and the capture takes the aspect difference (a 3:2
- * screenshot lands about 12% taller on A4 landscape).
+ * The default page follows the image's proportions at up to A4 width. Original
+ * size uses 96 pixels per inch; A4 fits and centers the whole image on one sheet.
+ * No page option crops or stretches the composition.
+ * The full-resolution bitmap is embedded without JPEG compression or downsampling.
  */
-async function pdfBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+async function pdfBlob(canvas: HTMLCanvasElement, options: PdfExportOptions): Promise<Blob> {
+  const { pageWidth, pageHeight, imageWidth, imageHeight, x, y } = pdfLayout(canvas, options)
   const { rgb, alpha } = await imageStreams(canvas)
   const width = canvas.width
   const height = canvas.height
-  const landscape = width > height
-  const pageWidth = landscape ? A4_LONG : A4_SHORT
-  const pageHeight = landscape ? A4_SHORT : A4_LONG
-  const point = (value: number) => Number(value.toFixed(4)).toString()
+  const point = (value: number) => Number(value.toFixed(6)).toString()
   // 1 catalog, 2 page tree, 3 the page, 4 the image, 5 its soft mask, 6 the content.
   const imageId = 4
   const alphaId = alpha ? imageId + 1 : undefined
@@ -137,20 +180,18 @@ async function pdfBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   object(1, [asBytes('<< /Type /Catalog /Pages 2 0 R >>')])
   object(2, [asBytes(`<< /Type /Pages /Kids [3 0 R] /Count 1 >>`)])
   object(3, [asBytes(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${point(pageWidth)} ${point(pageHeight)}] /Resources << /XObject << /Im0 ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`)])
-  object(imageId, stream(`/Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode${alphaId ? ` /SMask ${alphaId} 0 R` : ''}`, rgb))
+  object(imageId, stream(`/Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Interpolate false /Filter /FlateDecode${alphaId ? ` /SMask ${alphaId} 0 R` : ''}`, rgb))
   if (alpha && alphaId) object(alphaId, stream(`/Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode`, alpha))
-  // The XObject is the unit square, so the matrix is the size to draw it at and where:
-  // the whole sheet, from the origin.
-  object(contentId, stream('', asBytes(`q\n${point(pageWidth)} 0 0 ${point(pageHeight)} 0 0 cm\n/Im0 Do\nQ\n`)))
+  object(contentId, stream('', asBytes(`q\n${point(imageWidth)} 0 0 ${point(imageHeight)} ${point(x)} ${point(y)} cm\n/Im0 Do\nQ\n`)))
   const xrefOffset = length
   const count = offsets.length
   append(asBytes(`xref\n0 ${count}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${count} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`))
   return new Blob(parts, { type: 'application/pdf' })
 }
 
-export async function createExportBlob(canvas: HTMLCanvasElement, format: ExportFormat): Promise<Blob> {
+export async function createExportBlob(canvas: HTMLCanvasElement, format: ExportFormat, pdfOptions: PdfExportOptions = {}): Promise<Blob> {
   checkCanvas(canvas)
-  if (format === 'pdf') return pdfBlob(canvas)
+  if (format === 'pdf') return pdfBlob(canvas, pdfOptions)
   if (format === 'jpg') return jpegBlob(canvas)
   if (format === 'webp') return webpBlob(canvas)
   return pngBlob(canvas)
