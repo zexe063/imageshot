@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "ImageShot — Capture & Create",
+  "short_name": "ImageShot",
+  "version": "1.0.0",
+  "description": "Capture an area, the visible page, or a scrolling webpage. Annotate and style beautiful screenshots, entirely on your device.",
+  "minimum_chrome_version": "114",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Open ImageShot capture"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Capture with ImageShot",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

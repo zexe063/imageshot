@@ -1,0 +1,102 @@
+@import 'tailwindcss';
+
+/* ==========================================================================
+   ImageShot studio — Figma inspired light theme
+   Tailwind v4 holds the design tokens; every component styles itself with
+   utilities. Only global defaults, the two webfonts and one keyframe live here.
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Geist Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('@fontsource-variable/geist/files/geist-latin-wght-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2');
+}
+
+@theme {
+  --font-ui: 'Geist Variable', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-canvas: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --color-panel: #f5f5f5;
+  --color-surface: #ffffff;
+  --color-canvas: #e5e5e5;
+  --color-line: #e3e3e3;
+  --color-line-soft: #ededed;
+  /* Panels are white, so every field surface shares one warm step down. */
+  --color-field: #f3f1f1;
+  --color-field-hover: #eae7e7;
+
+  --color-ink: #1e1e1e;
+  --color-ink-2: #757575;
+  --color-ink-3: #b0b0b0;
+  --color-ink-4: #d0d0d0;
+
+  --color-accent: #6244e0;
+  --color-accent-hover: #5236c9;
+  --color-accent-soft: #e7e2fb;
+  --color-accent-soft-hover: #ddd6fa;
+  --color-accent-ink: #4a2fb4;
+  --color-danger: #f24822;
+
+  --text-app: 11px;
+  --radius-control: 6px;
+
+  --animate-busy: busy 1s linear infinite;
+}
+
+@keyframes busy {
+  to { transform: rotate(360deg); }
+}
+
+/** The hairline between the cells of a colour row; only a cell that follows another gets one. */
+@utility cell-divider {
+  & + & {
+    box-shadow: inset 1px 0 0 rgb(0 0 0 / 0.1);
+  }
+}
+
+@layer base {
+  /* Both panels and the top bar grid read these, so the columns can never drift. */
+  :root { --left-w: 244px; --right-w: 268px; }
+  @media (max-width: 1320px) { :root { --left-w: 216px; --right-w: 252px; } }
+  @media (max-width: 1160px) { :root { --left-w: 196px; --right-w: 240px; } }
+  @media (max-width: 760px) { :root { --right-w: 218px; } }
+
+  html, body, #root { height: 100%; }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    line-height: normal;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    color-scheme: light;
+  }
+
+  button:not(:disabled) { cursor: pointer; }
+  button:disabled { opacity: .4; cursor: default; }
+  button { transition: background .12s ease, color .12s ease, box-shadow .12s ease; }
+
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+  input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
+
+  svg { flex-shrink: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+}

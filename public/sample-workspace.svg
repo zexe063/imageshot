@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" fill="none">
+  <defs>
+    <linearGradient id="hero" x1="245" y1="180" x2="1168" y2="330" gradientUnits="userSpaceOnUse"><stop stop-color="#ECF1E9"/><stop offset="1" stop-color="#E4ECE1"/></linearGradient>
+    <linearGradient id="plant" x1="1011" y1="190" x2="1040" y2="290" gradientUnits="userSpaceOnUse"><stop stop-color="#8A9E7A"/><stop offset="1" stop-color="#4D7255"/></linearGradient>
+    <linearGradient id="chart" x1="0" y1="470" x2="0" y2="660" gradientUnits="userSpaceOnUse"><stop stop-color="#DAE8D8" stop-opacity=".65"/><stop offset="1" stop-color="#DAE8D8" stop-opacity="0"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#31452F" flood-opacity=".08"/></filter>
+    <clipPath id="round"><rect width="1200" height="760" rx="10"/></clipPath>
+    <style>text{font-family:Inter,'Segoe UI',Arial,sans-serif}.label{font-size:12px;fill:#81877D}.body{font-size:13px;fill:#303B31}.small{font-size:11px;fill:#82887F}.stroke{stroke:#7E877C;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}</style>
+  </defs>
+  <g clip-path="url(#round)">
+    <rect width="1200" height="760" fill="#F7F8F5"/>
+    <rect width="207" height="760" fill="#FDFEFB"/>
+    <path d="M207 0V760" stroke="#E8EBE3"/>
+    <rect x="26" y="27" width="29" height="29" rx="8" fill="#3E5F45"/>
+    <path d="M34 35H48V39H38V48H34V35Z" fill="#F0F5E9"/>
+    <path d="M42 42H48V48H42V42Z" fill="#BFCFAE"/>
+    <text x="65" y="50" fill="#283D2B" font-size="28" font-weight="650" letter-spacing="-1.2">forma</text>
+    <rect x="17" y="84" width="173" height="40" rx="7" fill="#F5F6F1" stroke="#E8EBE2"/>
+    <rect x="28" y="94" width="20" height="20" rx="5" fill="#DDD6C8"/>
+    <text x="33" y="108" font-size="11" fill="#685B45" font-weight="700">S</text>
+    <text x="59" y="108" class="body" font-size="12" font-weight="550">Studio workspace</text>
+    <path d="M173 101L176 104L179 101M173 108L176 111L179 108" class="stroke" stroke-width="1.2"/>
+    <text x="28" y="158" class="small" font-size="10" letter-spacing="1.2" font-weight="600">WORKSPACE</text>
+    <rect x="16" y="173" width="175" height="39" rx="7" fill="#EAF0E4"/>
+    <g stroke="#52724C" stroke-width="1.5"><rect x="29" y="185" width="6" height="6" rx="1.2"/><rect x="39" y="185" width="6" height="6" rx="1.2"/><rect x="29" y="195" width="6" height="6" rx="1.2"/><rect x="39" y="195" width="6" height="6" rx="1.2"/></g>
+    <text x="58" y="198" font-size="13" font-weight="600" fill="#486345">Overview</text>
+    <g class="stroke"><rect x="29" y="229" width="16" height="15" rx="3"/><path d="M33 236L36 239L42 233"/></g>
+    <text x="58" y="241" class="body">My tasks</text>
+    <rect x="159" y="226" width="21" height="20" rx="5" fill="#F0F1EB"/><text x="166" y="240" class="small" fill="#66715F">8</text>
+    <g class="stroke"><path d="M29 272H35L38 275H45V288H29V272Z"/></g>
+    <text x="58" y="285" class="body">Projects</text>
+    <g class="stroke"><rect x="29" y="318" width="16" height="16" rx="3"/><path d="M29 323H45M34 316V321M40 316V321"/></g>
+    <text x="58" y="330" class="body">Calendar</text>
+    <g class="stroke"><path d="M29 363L33 358H41L45 363V375H29V363Z"/><path d="M29 367H34L36 370H39L41 367H45"/></g>
+    <text x="58" y="372" class="body">Inbox</text><circle cx="173" cy="367" r="3" fill="#73916A"/>
+    <path d="M25 405H181" stroke="#E8EBE3"/>
+    <text x="28" y="438" class="small" font-size="10" letter-spacing="1.2" font-weight="600">YOUR PROJECTS</text>
+    <path d="M169 432V442M164 437H174" class="stroke" stroke-width="1.2"/>
+    <rect x="30" y="460" width="9" height="9" rx="3" fill="#A5B396"/><text x="56" y="469" class="body">Website refresh</text>
+    <rect x="30" y="498" width="9" height="9" rx="3" fill="#DAB59A"/><text x="56" y="507" class="body">Brand &amp; identity</text>
+    <rect x="30" y="536" width="9" height="9" rx="3" fill="#B1ACCB"/><text x="56" y="545" class="body">Summer campaign</text>
+    <rect x="18" y="602" width="171" height="83" rx="9" fill="#F3F4EC"/>
+    <text x="32" y="625" font-size="12" fill="#405039" font-weight="600">Space for your next idea.</text>
+    <text x="32" y="644" class="small">Make more room with Pro.</text>
+    <text x="32" y="667" font-size="11" fill="#54694A" font-weight="650">Explore plans</text><path d="M116 663H126M122 659L126 663L122 667" stroke="#54694A" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M0 706H207" stroke="#E8EBE3"/>
+    <circle cx="37" cy="733" r="15" fill="#E2CDBA"/><path d="M25 746C26 734 47 734 49 746" fill="#9CACA0"/><circle cx="37" cy="729" r="6" fill="#C98E6C"/><path d="M31 730C28 719 44 719 43 730L40 724L32 727Z" fill="#493C30"/>
+    <text x="60" y="731" font-size="12" fill="#354431" font-weight="600">Alex Morgan</text><text x="60" y="747" font-size="10" fill="#91978B">Personal account</text>
+    <path d="M171 730L175 734L179 730" class="stroke"/>
+
+    <rect x="208" width="992" height="70" fill="#FDFEFB"/>
+    <path d="M208 70H1200" stroke="#E8EBE3"/>
+    <g class="stroke"><rect x="239" y="28" width="15" height="14" rx="2"/><path d="M244 28V42"/></g>
+    <path d="M274 27V43" stroke="#E3E7DF"/>
+    <text x="294" y="39" font-size="12" fill="#8A9083">Workspace</text><path d="M370 31L374 35L370 39" stroke="#B2B7AC" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="391" y="39" font-size="12" fill="#3C4937" font-weight="550">Overview</text>
+    <rect x="882" y="20" width="209" height="31" rx="6" fill="#F7F8F4" stroke="#EBEEE5"/>
+    <circle cx="896" cy="34" r="4.5" stroke="#A2A99A" stroke-width="1.4"/><path d="M900 38L903 41" stroke="#A2A99A" stroke-width="1.4" stroke-linecap="round"/>
+    <text x="913" y="39" font-size="11" fill="#999F91">Search anything...</text><rect x="1060" y="27" width="21" height="16" rx="3" fill="#FDFEFA" stroke="#E1E5DA"/><text x="1065" y="39" font-size="10" fill="#919A85">⌘K</text>
+    <g class="stroke"><path d="M1121 38H1135L1133 35V31C1133 27 1123 27 1123 31V35L1121 38ZM1126 42H1130"/></g><circle cx="1135" cy="26" r="3" fill="#C19A70" stroke="#FDFEFB" stroke-width="2"/>
+    <circle cx="1169" cy="35" r="14" fill="#E2CDBA"/><path d="M1158 46C1159 36 1179 36 1180 46" fill="#9CACA0"/><circle cx="1169" cy="31" r="6" fill="#C98E6C"/><path d="M1163 32C1160 21 1176 21 1175 32L1172 26L1164 29Z" fill="#493C30"/>
+
+    <text x="242" y="110" class="label" font-size="11">WEDNESDAY, JUNE 18</text>
+    <text x="242" y="143" font-size="27" font-weight="620" letter-spacing="-.8" fill="#303F2E">A little clarity. A lot of progress.</text>
+    <rect x="1028" y="111" width="138" height="34" rx="7" fill="#FDFEFB" stroke="#E0E5DA"/>
+    <g stroke="#75816A" stroke-width="1.3" stroke-linecap="round"><rect x="1041" y="121" width="13" height="13" rx="2"/><path d="M1041 125H1054M1045 119V123M1050 119V123"/></g>
+    <text x="1063" y="132" font-size="11" fill="#4D5D42">This month</text><path d="M1146 126L1150 130L1154 126" class="stroke" stroke-width="1.3"/>
+
+    <rect x="242" y="168" width="925" height="158" rx="12" fill="url(#hero)"/>
+    <text x="268" y="203" font-size="11" font-weight="600" letter-spacing=".4" fill="#6E8261">A FRESH START</text>
+    <text x="268" y="236" font-size="25" font-weight="620" letter-spacing="-.55" fill="#3A5036">Good morning, Alex.</text>
+    <text x="268" y="260" font-size="12" fill="#76836C">Your ideas are taking shape. Let's make today a good one.</text>
+    <rect x="268" y="281" width="119" height="28" rx="6" fill="#F9FBF5"/>
+    <text x="282" y="299" font-size="11" font-weight="550" fill="#586E4D">View my tasks</text><path d="M367 291L371 295L367 299M362 295H371" stroke="#6B805F" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <g>
+      <ellipse cx="1018" cy="295" rx="111" ry="12" fill="#D4DEC9" opacity=".7"/>
+      <path d="M934 284L963 226L985 237L958 293L934 284Z" fill="#BA9672"/><path d="M948 285L976 230L1009 248L984 302L948 285Z" fill="#F9F4E9"/><path d="M981 240L1000 249M977 248L996 257M973 256L992 265M969 264L988 273" stroke="#D7CBB7" stroke-width="2" stroke-linecap="round"/>
+      <path d="M1002 259H1088L1073 304H1016L1002 259Z" fill="#C6AD90"/><path d="M1002 259H1088V266H1002V259Z" fill="#D9C5AB"/><path d="M1018 269L1026 301M1037 269L1040 301M1058 269L1055 301M1076 269L1066 301" stroke="#B59A7B" stroke-width="1.6"/>
+      <path d="M1046 259C1046 240 1041 211 1049 188" stroke="#637B56" stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M1047 218C1027 220 1015 208 1017 194C1036 193 1044 203 1047 218Z" fill="url(#plant)"/>
+      <path d="M1048 206C1043 190 1057 175 1072 176C1074 192 1063 205 1048 206Z" fill="#6D875D"/>
+      <path d="M1047 241C1022 243 1005 230 1008 214C1032 215 1044 225 1047 241Z" fill="#759467"/>
+      <path d="M1048 231C1050 209 1072 201 1089 210C1082 228 1067 234 1048 231Z" fill="#8FA380"/>
+      <path d="M1047 255C1054 234 1075 230 1088 237C1080 253 1065 259 1047 255Z" fill="#5D8155"/>
+      <path d="M1046 255L1020 224M1047 240L1077 217M1047 218L1026 201" stroke="#4E7048" stroke-width="1" opacity=".5"/>
+      <path d="M899 283H933V296C933 301 926 305 916 305C906 305 899 301 899 296V283Z" fill="#F4E4C9"/><ellipse cx="916" cy="283" rx="17" ry="5" fill="#FAF1DD"/><ellipse cx="916" cy="284" rx="12" ry="3" fill="#B89C74"/><path d="M933 287H938C947 287 945 298 935 298" stroke="#F4E4C9" stroke-width="4"/>
+      <path d="M1103 280L1107 276L1111 280L1107 284L1103 280ZM931 204L934 201L937 204L934 207L931 204Z" fill="#B7C3A6"/>
+      <circle cx="1125" cy="235" r="3" fill="#CCD4BC"/>
+    </g>
+
+    <rect x="242" y="345" width="296" height="100" rx="9" fill="#FDFEFB" stroke="#E5E9DF"/>
+    <rect x="557" y="345" width="295" height="100" rx="9" fill="#FDFEFB" stroke="#E5E9DF"/>
+    <rect x="871" y="345" width="296" height="100" rx="9" fill="#FDFEFB" stroke="#E5E9DF"/>
+    <text x="262" y="371" class="label" font-size="11">Tasks completed</text><text x="262" y="409" font-size="29" font-weight="600" letter-spacing="-1" fill="#3B4C33">24<tspan font-size="13" font-weight="400" fill="#A0A795"> / 32</tspan></text><text x="263" y="431" font-size="10" fill="#819475">↗ 12% from last month</text>
+    <g stroke="#94AE82" stroke-width="3" stroke-linecap="round"><path d="M426 412V403M439 412V395M452 412V398M465 412V384M478 412V377M491 412V384M504 412V368"/></g>
+    <text x="578" y="371" class="label" font-size="11">Projects in motion</text><text x="578" y="409" font-size="29" font-weight="600" letter-spacing="-1" fill="#3B4C33">6</text><text x="578" y="431" font-size="10" fill="#A1A78F">Everything is moving along</text>
+    <rect x="787" y="369" width="42" height="42" rx="11" fill="#F0F3EA"/><path d="M799 383H805L808 386H819V398H799V383Z" stroke="#879978" stroke-width="1.7" stroke-linejoin="round"/>
+    <text x="891" y="371" class="label" font-size="11">Your focus time</text><text x="891" y="409" font-size="29" font-weight="600" letter-spacing="-1" fill="#3B4C33">18.5<tspan font-size="15" font-weight="450" letter-spacing="0" fill="#9DA58E"> hrs</tspan></text><text x="892" y="431" font-size="10" fill="#819475">↗ 3.2 hours this week</text>
+    <circle cx="1127" cy="392" r="21" stroke="#ECF0E5" stroke-width="5"/><path d="M1127 371A21 21 0 1 1 1107 399" stroke="#A3B48F" stroke-width="5" stroke-linecap="round"/><path d="M1127 381V392L1134 396" stroke="#889B74" stroke-width="1.5" stroke-linecap="round"/>
+
+    <rect x="242" y="465" width="564" height="266" rx="9" fill="#FDFEFB" stroke="#E5E9DF"/>
+    <text x="263" y="494" font-size="14" font-weight="600" fill="#3D4B37">Your priorities</text><text x="263" y="513" font-size="11" fill="#9CA490">A little focus goes a long way.</text>
+    <rect x="708" y="480" width="77" height="28" rx="6" fill="#F9FAF6" stroke="#E8ECE2"/><path d="M720 489V499M715 494H725" stroke="#77886A" stroke-width="1.2" stroke-linecap="round"/><text x="732" y="498" font-size="10" font-weight="550" fill="#6B7C5E">Add task</text>
+    <path d="M263 532H785" stroke="#EDF0E7"/>
+    <text x="294" y="551" font-size="10" fill="#A2A996">TASK NAME</text><text x="655" y="551" font-size="10" fill="#A2A996">DUE DATE</text><text x="751" y="551" font-size="10" fill="#A2A996">TEAM</text>
+    <path d="M263 563H785" stroke="#EDF0E7"/>
+    <rect x="263" y="579" width="14" height="14" rx="4" stroke="#CDD5C2" stroke-width="1.2"/><text x="293" y="585" font-size="12" fill="#45533D">Finalize homepage explorations</text><circle cx="297" cy="601" r="3" fill="#A5B396"/><text x="307" y="605" font-size="10" fill="#A0A68F">Website refresh</text>
+    <rect x="654" y="580" width="45" height="20" rx="4" fill="#F5EDDE"/><text x="663" y="594" font-size="10" fill="#A69265">Today</text>
+    <circle cx="762" cy="590" r="12" fill="#E2CDBA"/><text x="754" y="594" font-size="9" fill="#876C51" font-weight="600">AM</text>
+    <path d="M263 617H785" stroke="#F0F2EB"/>
+    <rect x="263" y="633" width="14" height="14" rx="4" stroke="#CDD5C2" stroke-width="1.2"/><text x="293" y="639" font-size="12" fill="#45533D">Review the new color direction</text><circle cx="297" cy="655" r="3" fill="#DAB59A"/><text x="307" y="659" font-size="10" fill="#A0A68F">Brand &amp; identity</text><text x="655" y="645" font-size="11" fill="#929B84">Jun 19</text>
+    <circle cx="751" cy="644" r="12" fill="#D5DFCC" stroke="#FDFEFB" stroke-width="2"/><text x="744" y="648" font-size="8" fill="#6A7E56" font-weight="600">JL</text><circle cx="769" cy="644" r="12" fill="#DBD5E5" stroke="#FDFEFB" stroke-width="2"/><text x="761" y="648" font-size="8" fill="#89769D" font-weight="600">SK</text>
+    <path d="M263 671H785" stroke="#F0F2EB"/>
+    <rect x="263" y="687" width="14" height="14" rx="4" fill="#E9F0E1" stroke="#C3D0B6"/><path d="M267 694L270 697L274 691" stroke="#90A77B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><text x="293" y="693" font-size="12" fill="#ACB4A0">Share the creative brief</text><path d="M293 689H426" stroke="#BCC4B1"/><circle cx="297" cy="708" r="3" fill="#B1ACCB"/><text x="307" y="712" font-size="10" fill="#A0A68F">Summer campaign</text><text x="655" y="699" font-size="11" fill="#A5AD97">Jun 18</text><circle cx="762" cy="698" r="12" fill="#E2CDBA"/><text x="754" y="702" font-size="9" fill="#876C51" font-weight="600">AM</text>
+
+    <rect x="826" y="465" width="341" height="266" rx="9" fill="#FDFEFB" stroke="#E5E9DF"/>
+    <text x="847" y="494" font-size="14" font-weight="600" fill="#3D4B37">Making progress</text><text x="847" y="513" font-size="11" fill="#9CA490">Small steps. Meaningful momentum.</text>
+    <circle cx="1126" cy="490" r="1.5" fill="#A4AD98"/><circle cx="1132" cy="490" r="1.5" fill="#A4AD98"/><circle cx="1138" cy="490" r="1.5" fill="#A4AD98"/>
+    <text x="847" y="551" font-size="27" font-weight="600" letter-spacing="-.8" fill="#425338">75<tspan font-size="17">%</tspan></text><rect x="911" y="531" width="48" height="19" rx="9.5" fill="#EDF3E6"/><text x="920" y="544" font-size="10" fill="#859B70">+18%</text>
+    <text x="847" y="570" font-size="10" fill="#A1A990">of this month's goals completed</text>
+    <path d="M856 596H1141M856 622H1141M856 648H1141M856 674H1141" stroke="#EFF2EA" stroke-dasharray="3 4"/>
+    <path d="M856 663C879 663 881 648 903 648C925 648 925 656 946 647C967 638 969 622 993 626C1017 630 1020 613 1043 613C1066 613 1064 628 1087 607C1108 587 1119 596 1141 582V675H856V663Z" fill="url(#chart)"/>
+    <path d="M856 663C879 663 881 648 903 648C925 648 925 656 946 647C967 638 969 622 993 626C1017 630 1020 613 1043 613C1066 613 1064 628 1087 607C1108 587 1119 596 1141 582" stroke="#8CA37B" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="1141" cy="582" r="4" fill="#8CA37B" stroke="#FDFEFB" stroke-width="2"/>
+    <text x="850" y="696" font-size="9" fill="#A2AA97">Mon</text><text x="897" y="696" font-size="9" fill="#A2AA97">Tue</text><text x="944" y="696" font-size="9" fill="#A2AA97">Wed</text><text x="991" y="696" font-size="9" fill="#A2AA97">Thu</text><text x="1038" y="696" font-size="9" fill="#A2AA97">Fri</text><text x="1083" y="696" font-size="9" fill="#A2AA97">Sat</text><text x="1130" y="696" font-size="9" fill="#A2AA97">Sun</text>
+  </g>
+</svg>
